@@ -9,7 +9,7 @@ network interface bound to a supplied subnet.
 
 ```hcl
 module "scale_set" {
-  source = "github.com/cybercapybara/terraform-azurerm-scale-set"
+  source = "github.com/moveeeax/terraform-azurerm-scale-set"
 
   name                = "web-vmss"
   resource_group_name = "prod-rg"
