@@ -9,7 +9,7 @@ network interface bound to a supplied subnet.
 
 ```hcl
 module "scale_set" {
-  source = "github.com/moveeeax/terraform-azurerm-scale-set"
+  source = "github.com/moveeeax/terraform-azurerm-scale-set?ref=v1.0.0"
 
   name                = "web-vmss"
   resource_group_name = "prod-rg"
@@ -45,7 +45,7 @@ provider fail during apply:
 
 ```hcl
 module "scale_set" {
-  source = "github.com/moveeeax/terraform-azurerm-scale-set"
+  source = "github.com/moveeeax/terraform-azurerm-scale-set?ref=v1.0.0"
 
   # ...
 
@@ -80,12 +80,14 @@ declare a crash-looping fleet healthy.
 | Name      | Version         |
 |-----------|-----------------|
 | terraform | >= 1.5          |
-| azurerm   | >= 3.0, < 5.0   |
+| azurerm   | >= 3.0, < 6.0   |
 
 Every argument this module uses is present unchanged in the
 `azurerm_linux_virtual_machine_scale_set` schema from azurerm 3.0.0 through
-4.x, so the lower bound is honest. The upper bound keeps an unreleased 5.0
-from reaching consumers before the module has been checked against it.
+5.x, so the lower bound is honest. azurerm 5.0 (released 2026-07-27) removed
+several scale-set arguments, none of which the module sets; CI tests against
+the latest 5.x release. The `< 6.0` ceiling keeps the next major out until the
+module has been checked against it.
 
 Running the test suite additionally requires Terraform >= 1.7 for
 `mock_provider`. The module itself does not.
