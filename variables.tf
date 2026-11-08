@@ -158,6 +158,39 @@ variable "boot_diagnostics_storage_account_uri" {
   default     = null
 }
 
+variable "identity" {
+  description = "Managed identity of the scale set. type is SystemAssigned, UserAssigned or \"SystemAssigned, UserAssigned\"; identity_ids lists user-assigned identity IDs and is required for (and only allowed with) the UserAssigned types. null assigns no identity."
+  type = object({
+    type         = string
+    identity_ids = optional(list(string), [])
+  })
+  default = null
+
+  validation {
+    condition     = var.identity == null || contains(["SystemAssigned", "UserAssigned", "SystemAssigned, UserAssigned"], try(var.identity.type, ""))
+    error_message = "The identity type value must be one of SystemAssigned, UserAssigned or \"SystemAssigned, UserAssigned\"."
+  }
+
+  validation {
+    # The provider refuses identity_ids without a UserAssigned type, and a
+    # UserAssigned type with no IDs leaves the instances with no identity to
+    # use. Both are caught here instead of at the API call.
+    condition = var.identity == null || try(
+      strcontains(var.identity.type, "UserAssigned") == (length(var.identity.identity_ids) > 0),
+      false
+    )
+    error_message = "The identity identity_ids value must list at least one user-assigned identity ID when type includes UserAssigned, and must be empty for SystemAssigned."
+  }
+
+  validation {
+    condition = var.identity == null || try(alltrue([
+      for id in var.identity.identity_ids :
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.ManagedIdentity/userAssignedIdentities/[^/]+$", id))
+    ]), false)
+    error_message = "Each identity identity_ids entry must be a user-assigned identity resource ID (/subscriptions/.../resourceGroups/.../providers/Microsoft.ManagedIdentity/userAssignedIdentities/...)."
+  }
+}
+
 variable "tags" {
   description = "Map of tags applied to the scale set."
   type        = map(string)

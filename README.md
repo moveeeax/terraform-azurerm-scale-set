@@ -65,6 +65,41 @@ The probe must target a port that goes unhealthy when your application is
 broken. A probe that only checks that the VM has an IP address will happily
 declare a crash-looping fleet healthy.
 
+## Managed identity
+
+Instances that read secrets from Key Vault or blobs from storage need an
+identity to authenticate with; otherwise the credentials end up baked into the
+image or the custom data. `identity` attaches one, and no identity is assigned
+when it is left at `null`:
+
+```hcl
+module "scale_set" {
+  source = "github.com/moveeeax/terraform-azurerm-scale-set?ref=v1.0.0"
+
+  # ...
+
+  identity = {
+    type = "SystemAssigned"
+  }
+}
+
+resource "azurerm_role_assignment" "secrets" {
+  scope                = azurerm_key_vault.app.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = module.scale_set.identity_principal_id
+}
+```
+
+`type` is `SystemAssigned`, `UserAssigned` or `"SystemAssigned, UserAssigned"`.
+The UserAssigned types need at least one ID in `identity_ids`, and
+`identity_ids` must stay empty for `SystemAssigned`; both rules are checked at
+plan time. A user-assigned identity fits better when the role assignments must
+exist before the scale set does, or survive its replacement.
+
+`identity_principal_id` is the principal ID of the system-assigned identity.
+For a user-assigned identity, grant roles to the `principal_id` of the
+`azurerm_user_assigned_identity` resource instead.
+
 ## Security defaults
 
 | Behaviour | Default | Notes |
@@ -73,6 +108,7 @@ declare a crash-looping fleet healthy.
 | OS disk encryption at rest | Platform-managed key | Always on for Azure managed disks. Set `os_disk_disk_encryption_set_id` for a customer-managed key. |
 | Encryption at host | Off | Set `encryption_at_host_enabled = true`. Needs the `EncryptionAtHost` subscription feature and a supporting VM size. |
 | Boot diagnostics | On, Azure-managed storage | Serial console output and boot screenshots. Set `boot_diagnostics_enabled = false` to opt out. |
+| Managed identity | None | Set `identity` to give the instances a system- or user-assigned identity. |
 | Overprovisioning | Provider default (`true`) | Left alone deliberately: it improves deployment success rate and the extra instances are deleted once the scale set is up. |
 
 ## Requirements
@@ -114,6 +150,7 @@ Running the test suite additionally requires Terraform >= 1.7 for
 | `rolling_upgrade_policy`               | Batch sizing and health thresholds for automated upgrades.             | `object`      | 20% / 20% / 20% / `PT5M` |    no    |
 | `boot_diagnostics_enabled`             | Capture serial console output and boot screenshots.                    | `bool`        | `true`           |    no    |
 | `boot_diagnostics_storage_account_uri` | Blob endpoint for boot diagnostics; null uses Azure-managed storage.   | `string`      | `null`           |    no    |
+| `identity`                             | Managed identity: `type` and, for UserAssigned, `identity_ids`.        | `object`      | `null`           |    no    |
 | `tags`                                 | Map of tags applied to the scale set.                                  | `map(string)` | `{}`             |    no    |
 
 ## Outputs
@@ -123,6 +160,7 @@ Running the test suite additionally requires Terraform >= 1.7 for
 | `id`       | ID of the virtual machine scale set.            |
 | `name`     | Name of the virtual machine scale set.          |
 | `identity` | Managed identity block of the scale set, if set.|
+| `identity_principal_id` | Principal ID of the system-assigned identity, or `null`. |
 
 ## Development
 
