@@ -169,3 +169,129 @@ run "rejects_out_of_range_rolling_upgrade_percentages" {
 
   expect_failures = [var.rolling_upgrade_policy]
 }
+
+# Managed identity (issue #3).
+
+run "identity_is_off_by_default" {
+  command = plan
+
+  assert {
+    condition     = length(azurerm_linux_virtual_machine_scale_set.this.identity) == 0
+    error_message = "No identity block may be emitted unless var.identity is set, so existing scale sets plan the same."
+  }
+
+  assert {
+    condition     = output.identity_principal_id == null
+    error_message = "identity_principal_id must be null when no identity is configured."
+  }
+}
+
+run "system_assigned_identity_is_wired_through" {
+  command = plan
+
+  variables {
+    identity = {
+      type = "SystemAssigned"
+    }
+  }
+
+  assert {
+    condition     = azurerm_linux_virtual_machine_scale_set.this.identity[0].type == "SystemAssigned"
+    error_message = "identity.type must be wired through to the scale set."
+  }
+
+  assert {
+    condition     = length(azurerm_linux_virtual_machine_scale_set.this.identity[0].identity_ids) == 0
+    error_message = "A SystemAssigned identity must not carry identity_ids."
+  }
+}
+
+run "user_assigned_identity_is_wired_through" {
+  command = plan
+
+  variables {
+    identity = {
+      type         = "SystemAssigned, UserAssigned"
+      identity_ids = ["/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-uai"]
+    }
+  }
+
+  assert {
+    condition     = azurerm_linux_virtual_machine_scale_set.this.identity[0].type == "SystemAssigned, UserAssigned"
+    error_message = "identity.type must be wired through to the scale set."
+  }
+
+  assert {
+    condition     = contains(azurerm_linux_virtual_machine_scale_set.this.identity[0].identity_ids, "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-uai")
+    error_message = "identity.identity_ids must be wired through to the scale set."
+  }
+}
+
+run "identity_principal_id_is_exported" {
+  # apply against the mock so the computed principal_id gets a value.
+  variables {
+    identity = {
+      type = "SystemAssigned"
+    }
+  }
+
+  assert {
+    condition     = output.identity_principal_id == azurerm_linux_virtual_machine_scale_set.this.identity[0].principal_id
+    error_message = "identity_principal_id must expose the principal ID of the scale set identity."
+  }
+
+  assert {
+    condition     = output.identity_principal_id != null
+    error_message = "identity_principal_id must be set when an identity is configured."
+  }
+}
+
+run "rejects_invalid_identity_type" {
+  command = plan
+
+  variables {
+    identity = {
+      type = "Managed"
+    }
+  }
+
+  expect_failures = [var.identity]
+}
+
+run "rejects_user_assigned_identity_without_ids" {
+  command = plan
+
+  variables {
+    identity = {
+      type = "UserAssigned"
+    }
+  }
+
+  expect_failures = [var.identity]
+}
+
+run "rejects_identity_ids_with_system_assigned" {
+  command = plan
+
+  variables {
+    identity = {
+      type         = "SystemAssigned"
+      identity_ids = ["/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/test-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/test-uai"]
+    }
+  }
+
+  expect_failures = [var.identity]
+}
+
+run "rejects_malformed_identity_id" {
+  command = plan
+
+  variables {
+    identity = {
+      type         = "UserAssigned"
+      identity_ids = ["test-uai"]
+    }
+  }
+
+  expect_failures = [var.identity]
+}

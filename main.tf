@@ -68,6 +68,18 @@ resource "azurerm_linux_virtual_machine_scale_set" "this" {
     }
   }
 
+  # Managed identity for keyless access to Key Vault, storage and other Azure
+  # services from the instances. No block unless asked for, which is also what
+  # the module emitted before this input existed.
+  dynamic "identity" {
+    for_each = var.identity == null ? [] : [var.identity]
+
+    content {
+      type         = identity.value.type
+      identity_ids = identity.value.identity_ids
+    }
+  }
+
   # Serial-console output and boot screenshots. Omitting the block leaves boot
   # diagnostics off, which makes a failed boot undiagnosable after the fact.
   # A null URI selects the Azure-managed storage account.
